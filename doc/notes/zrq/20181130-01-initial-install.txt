@@ -1,0 +1,207 @@
+#
+# <meta:header>
+#   <meta:licence>
+#     Copyright (c) 2018, ROE (http://www.roe.ac.uk/)
+#
+#     This information is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+#
+#     This information is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#   </meta:licence>
+# </meta:header>
+#
+#
+
+# -----------------------------------------------------
+# Setup our project settings.
+#[user@laptop]
+
+cat > "${HOME}/hepialus.settings" << 'EOF'
+source "${HOME}/projects.settings"
+HEPIALUS_BASE="${EDINBURGH_PROJECTS:?}/hepialus"
+HEPIALUS_CODE="${HEPIALUS_BASE:?}/github.zrq"
+HEPIALUS_REPO='git@github.com:Zarquan/hepialus.git'
+EOF
+
+# -----------------------------------------------------
+# Build our initial container.
+#[user@laptop]
+
+    buildtag=$(date +%Y%m%d)
+
+    source "${HOME}/hepialus.settings"
+    pushd "${HEPIALUS_CODE:?}"
+        pushd src/docker
+            pushd server
+
+                docker build \
+                    --tag hepialus/nagiosxi-server:${buildtag:?} \
+                    --file Dockerfile \
+                    .
+
+            popd
+        popd
+    popd
+
+# -----------------------------------------------------
+# Test run of empty Fedora.
+#[user@laptop]
+
+    docker run \
+        --rm \
+        --tty \
+        --interactive \
+        --expose 0.0.0.0:80:80/tcp \
+        hepialus/nagiosxi-server:${buildtag:?} \
+            bash
+
+            #
+            # Check the Fedora distribution package.
+            dnf info nagios
+
+            >   Last metadata expiration check: 0:09:32 ago on Fri 30 Nov 2018 04:09:14 PM UTC.
+            >   Available Packages
+            >   Name         : nagios
+            >   Version      : 4.3.4
+            >   Release      : 13.fc29
+            >   Arch         : x86_64
+            >   Size         : 2.0 M
+            >   Source       : nagios-4.3.4-13.fc29.src.rpm
+            >   Repo         : fedora
+            >   Summary      : Host/service/network monitoring program
+            >   URL          : https://www.nagios.org/projects/nagios-core/
+            >   License      : GPLv2
+            >   Description  : Nagios is a program that will monitor hosts and services on your
+            >                : network.  It has the ability to send email or page alerts when a
+            >                : problem arises and when a problem is resolved.  Nagios is written
+            >                : in C and is designed to run under Linux (and some other *NIX
+            >                : variants) as a background process, intermittently running checks
+            >                : on various services that you specify.
+            >                :
+            >                : The actual service checks are performed by separate "plugin" programs
+            >                : which return the status of the checks to Nagios. The plugins are
+            >                : available at https://github.com/nagios-plugins/nagios-plugins
+            >                :
+            >                : This package provides the core program, web interface, and documentation
+            >                : files for Nagios. Development files are built as a separate package.
+
+            #
+            # Install required wget and firewall.
+            dnf install -y wget
+            dnf install -y firewalld # -- does this work in a container ?
+
+            #
+            # Check the latest distribution package.
+            pushd ${HOME}
+
+                wget http://assets.nagios.com/downloads/nagiosxi/xi-latest.tar.gz
+
+                tar -xvzf xi-latest.tar.gz
+
+                dnf install -y ncurses
+
+                pushd nagiosxi
+
+                    ./fullinstall
+
+                    >   ....
+                    >   ....
+                    >   Proceeding with installation...
+                    >   Checking MySQL credentials...
+                    >   MySQL not yet installed - that's okay.
+                    >
+                    >   Configuring Repos...
+                    >   fedora29 is not currently supported. Please use one of the following distros:
+                    >     CentOS, RHEL, Oracle 6 or 7
+                    >     Ubuntu 14, 16 or 18 LTS
+                    >     Debian 8 or 9
+                    >   ....
+                    >   Installation step failed - exiting.
+
+            #
+            # Feels like we are pushing uphill on this one.
+            # Install straight into a vanilla CentOS container ?
+            # Needs a MySQL service associated with it ..
+            # Install into a vanilla CentOS VM ?
+            #
+
+            #
+            # CentOS container would work, but would need a database too.
+            # Compose file to bring up the pari together.
+            #
+
+            #
+            # Monitor for the trop machines.
+            # Monitor for the openstack machines.
+            #
+
+# -----------------------------------------------------
+# Re-build our initial container, replacing Fedora with CentOS.
+#[user@laptop]
+
+    buildtag=$(date +%Y%m%d)
+
+    source "${HOME}/hepialus.settings"
+    pushd "${HEPIALUS_CODE:?}"
+        pushd src/docker
+            pushd server
+
+                docker build \
+                    --tag hepialus/nagiosxi-server:${buildtag:?} \
+                    --file Dockerfile \
+                    .
+
+            popd
+        popd
+    popd
+
+# -----------------------------------------------------
+# Test run of empty CentOS.
+#[user@laptop]
+
+    docker run \
+        --rm \
+        --tty \
+        --interactive \
+        --expose 80 \
+        hepialus/nagiosxi-server:${buildtag:?} \
+            bash
+
+            pushd ${HOME}
+
+                #
+                # Install wget.
+                yum install -y wget
+
+                #
+                # Download the latest distribution package.
+
+                wget http://assets.nagios.com/downloads/nagiosxi/xi-latest.tar.gz
+
+                tar -xvzf xi-latest.tar.gz
+
+                pushd nagiosxi
+
+                    ./fullinstall
+
+                    >   ....
+                    >   ....
+                    >   Running './3-dbservers'...
+                    >   MySQL installed OK - continuing...
+                    >   Starting MySQL...
+                    >   Redirecting to /bin/systemctl restart mariadb.service
+                    >   Failed to get D-Bus connection: Operation not permitted
+                    >   ERROR: MySQL failed to start - exiting.
+                    >   ....
+                    >   Installation step failed - exiting.
+
+
+
